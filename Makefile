@@ -1,13 +1,17 @@
 CC=gcc
 CFLAGS=-g
 LIBS=
-OBJS= mm.o
+OBJS= mm.o	\
+	test.o
 
 LinuxMemoryManager.bin:${OBJS}
 	${CC} ${CFLAGS} ${OBJS} -o LinuxMemoryManager.bin
 
-AppManager.o:AppManager.c
-	${CC} ${CFLAGS} -c mm.c -I . -o Amm.o
+mm.o:mm.c
+	${CC} ${CFLAGS} -c mm.c -I . -o mm.o
+
+test.o:test.c
+	${CC} ${CFLAGS} -c test.c -I . -o test.o
 
 
 all:

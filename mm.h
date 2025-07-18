@@ -18,6 +18,18 @@ typedef struct vm_page_for_families_{
 #define MAX_FAMILIES_PER_VM_PAGE \
         ((SYSTEM_PAGE_SIZE - sizeof(vm_page_for_families_t *))/sizeof(vm_page_family_t))
 
-void mm_init(void);
+#define SYSTEM_USABLE_PAGE_SIZE \
+        (SYSTEM_PAGE_SIZE - sizeof(vm_page_for_families_t *))
+
+#define ITERATE_PAGE_FAMILIES_BEGIN(vm_page_for_families_ptr, curr)                     \
+{                                                                                       \
+    uint32_t idx = 0U;                                                                  \
+    for (curr = (vm_page_family_t *)&vm_page_for_families_ptr->vm_page_family[idx];     \
+        ((idx < MAX_FAMILIES_PER_VM_PAGE) && (curr->struct_size > 0U));                 \
+        idx++,curr++)                                                                   \
+    {                                                                                   \
+
+#define ITERATE_PAGE_FAMILIES_END(vm_page_for_families_ptr, curr) }}
+
 
 #endif
