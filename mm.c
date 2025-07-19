@@ -89,7 +89,7 @@ vm_page_family_t *lookup_page_family_by_name(char *struct_name)
 
     if(!first_vm_page_for_families){
         printf("Error: No Page family exists\n");
-        return;
+        return NULL;
     }
     curr_vm_page_for_families = first_vm_page_for_families;
 
@@ -109,7 +109,7 @@ vm_page_family_t *lookup_page_family_by_name(char *struct_name)
 
         if(count == MAX_FAMILIES_PER_VM_PAGE){
             if(!curr_vm_page_for_families->next)
-                return;
+                return NULL;
             curr_vm_page_for_families = curr_vm_page_for_families->next;
             count = 0;
         }
