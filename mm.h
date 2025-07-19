@@ -119,13 +119,12 @@ typedef struct vm_page_for_families_{
 #define ITERATE_VM_PAGE_ALL_BLOCKS_END(vm_page_ptr, curr_block_meta_data) }}
 
 /* Function Prototypes */
-vm_page_family_t *lookup_page_family_by_name(char *struct_name);
+vm_page_family_t *mm_lookup_page_family_by_name(char *struct_name);
 
 vm_bool_t mm_is_vm_page_empty(vm_page_t *vm_page);
 
-static inline uint32_t mm_max_page_allocatable_memory(int units){
+vm_page_t *mm_allocate_vm_page(vm_page_family_t *vm_page_family);
 
-    
-}
+void mm_vm_page_delete_and_free(vm_page_t *vm_page);
 
 #endif

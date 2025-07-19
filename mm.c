@@ -41,14 +41,12 @@ static void mm_union_free_blocks(block_meta_data_t *first, block_meta_data_t *se
 
 /* assumption is, when contiguous pages (Giant VM pages) are allocated in which only the 
  * first vm page has the vm page meta data. for example for 2 contiguous pages, size would be 
- * (4096 * 2) - size of vm page meta data
+ * (4096 * 2) - size of vm page meta data = 4044 + 4096
 */
-#if 0
-static uint32_t mm_max_page_allocatable_memory(int units){
+static inline uint32_t mm_max_page_allocatable_memory(int units){
 
     return (uint32_t)((SYSTEM_PAGE_SIZE * units) - offset_of(vm_page_t, page_memory));
 }
-#endif
 
 void mm_init(void)
 {
@@ -100,7 +98,7 @@ void mm_instantiate_new_page_family(char *struct_name, uint32_t struct_size)
     vm_page_family_curr->struct_size = struct_size;
 }
 
-vm_page_family_t *lookup_page_family_by_name(char *struct_name)
+vm_page_family_t *mm_lookup_page_family_by_name(char *struct_name)
 {
     uint32_t count = 0U;
     vm_page_family_t *vm_page_family_curr = NULL;
@@ -185,6 +183,54 @@ vm_bool_t mm_is_vm_page_empty(vm_page_t *vm_page)
         return MM_TRUE;
     }
     return MM_FALSE;
+}
+
+vm_page_t *mm_allocate_vm_page(vm_page_family_t *vm_page_family)
+{
+    vm_page_t *prev_first_page = NULL;
+    vm_page_t *vm_page = mm_get_new_vm_page_from_kernel(1);
+
+    MARK_VM_PAGE_EMPTY(vm_page);
+    vm_page->block_meta_data.block_size = mm_max_page_allocatable_memory(1);
+    vm_page->block_meta_data.offset = offset_of(vm_page_t, block_meta_data);
+    vm_page->next = NULL;
+    vm_page->prev = NULL;
+    vm_page->page_family = vm_page_family;
+
+    if(!vm_page_family->first_page){
+        vm_page_family->first_page = vm_page;
+        return vm_page;
+    }
+    
+    prev_first_page = vm_page_family->first_page;
+    vm_page->next = prev_first_page;
+    prev_first_page->prev = vm_page;
+    vm_page_family->first_page = vm_page;
+    return vm_page;
+}
+
+void mm_vm_page_delete_and_free(vm_page_t *vm_page)
+{
+    vm_page_family_t *vm_page_family = vm_page->page_family;
+
+    if(vm_page_family->first_page == vm_page){
+
+        vm_page_family->first_page = vm_page->next;
+        if(vm_page->next)
+            vm_page->next->prev = NULL;
+        vm_page->next = NULL;
+        vm_page->prev = NULL;
+        vm_page->page_family = NULL;
+        mm_return_vm_page_to_kernel((void *)vm_page, 1);
+        return;
+    }
+    
+    if(vm_page->next)
+        vm_page->next->prev = vm_page->prev;
+    if(vm_page->prev)
+        vm_page->prev->next = vm_page->next;
+
+    mm_return_vm_page_to_kernel((void *)vm_page, 1);
 }
 
 
