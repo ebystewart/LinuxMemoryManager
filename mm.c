@@ -30,6 +30,26 @@ static void mm_return_vm_page_to_kernel(void *vm_page, int units)
     }
 }
 
+static void mm_union_free_blocks(block_meta_data_t *first, block_meta_data_t *second)
+{
+    assert(first->is_free == MM_TRUE && second->is_free == MM_TRUE);
+    first->block_size += (sizeof(block_meta_data_t) + second->block_size);
+    first->next_block = second->next_block;
+    if(first->next_block)
+        first->next_block->prev_block = first;
+}
+
+/* assumption is, when contiguous pages (Giant VM pages) are allocated in which only the 
+ * first vm page has the vm page meta data. for example for 2 contiguous pages, size would be 
+ * (4096 * 2) - size of vm page meta data
+*/
+#if 0
+static uint32_t mm_max_page_allocatable_memory(int units){
+
+    return (uint32_t)((SYSTEM_PAGE_SIZE * units) - offset_of(vm_page_t, page_memory));
+}
+#endif
+
 void mm_init(void)
 {
     SYSTEM_PAGE_SIZE = getpagesize();
@@ -58,11 +78,11 @@ void mm_instantiate_new_page_family(char *struct_name, uint32_t struct_size)
 
     /* Iterate over the family page and look if space is available */
     ITERATE_PAGE_FAMILIES_BEGIN(first_vm_page_for_families, vm_page_family_curr){
-        if(strncmp(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME) != 0U){
-            count++;
-            continue;
-        }
-        assert(0);
+        /* It should be possible to allocate memory for same structure multiple times */
+        //if(strncmp(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME) == 0U){
+            //assert(0);
+        //}
+        count++;
     }ITERATE_PAGE_FAMILIES_END(first_vm_page_for_families, vm_page_family_curr);
 
     /* If no space is available, create a new vm page family */
@@ -155,3 +175,16 @@ void mm_print_registered_page_families(void)
         }
     }while(curr_vm_page_for_families != NULL);
 }
+
+vm_bool_t mm_is_vm_page_empty(vm_page_t *vm_page)
+{
+    if(vm_page->block_meta_data.prev_block == NULL &&
+        vm_page->block_meta_data.next_block == NULL &&
+        vm_page->block_meta_data.is_free == MM_TRUE){
+
+        return MM_TRUE;
+    }
+    return MM_FALSE;
+}
+
+
