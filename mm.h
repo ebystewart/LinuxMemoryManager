@@ -5,7 +5,6 @@
 #include "glueThread/glthread.h"
 
 #define MM_MAX_STRUCT_NAME  32U
-#define MIN_BLOCK_DATA_SIZE 20U
 
 typedef enum{
     MM_FALSE,
@@ -98,7 +97,7 @@ typedef struct vm_page_for_families_{
 #define ITERATE_META_BLOCKS_BEGIN(first_meta_block, curr_meta_block)                    \
 {                                                                                       \
     for(curr_meta_block = first_meta_block;                                             \
-        curr_meta_block < (first_meta_block + (block_meta_data_t *)VM_PAGE_USABLE_SIZE);   \
+        curr_meta_block < (block_meta_data_t *)((char *)first_meta_block + VM_PAGE_USABLE_SIZE);   \
         curr_meta_block += (block_meta_data_t *)(curr_meta_block->block_size + sizeof(block_meta_data_t)))   \
         {                                                                               \
 
@@ -119,9 +118,9 @@ typedef struct vm_page_for_families_{
     curr_block_meta_data = &vm_page_ptr->block_meta_data;                                               \
     first_meta_block = curr_block_meta_data;                                                            \
     for(; (curr_block_meta_data &&                                                                      \
-        (curr_block_meta_data < (first_meta_block + (block_meta_data_t *)VM_PAGE_USABLE_SIZE)));        \
-        (curr_block_meta_data += (1 + (block_meta_data_t *)curr_block_meta_data->block_size)))          \
-    {                                                                       
+        (curr_block_meta_data < (block_meta_data_t *)((char *)first_meta_block + VM_PAGE_USABLE_SIZE)));        \
+        (curr_block_meta_data = (block_meta_data_t *)(curr_block_meta_data->block_size + sizeof(block_meta_data_t))))                \
+    {                                                                                                                                        
 
 #define ITERATE_VM_PAGE_ALL_BLOCKS_END(vm_page_ptr, curr_block_meta_data) }}
 
@@ -133,5 +132,7 @@ vm_bool_t mm_is_vm_page_empty(vm_page_t *vm_page);
 vm_page_t *mm_allocate_vm_page(vm_page_family_t *vm_page_family);
 
 void mm_vm_page_delete_and_free(vm_page_t *vm_page);
+
+void mm_print_vm_page_details(vm_page_t *vm_page);
 
 #endif
