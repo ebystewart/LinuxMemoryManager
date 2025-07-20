@@ -55,7 +55,7 @@ typedef struct vm_page_for_families_{
     ((size_t)&(((container_structure *)0)->field_name))
 
 #define MM_GET_PAGE_FROM_META_BLOCK(block_meta_data_ptr) \
-    ((void *)((char *)block_meta_data_ptr - block_meta_data__ptr->offset))
+    ((void *)((char *)block_meta_data_ptr - block_meta_data_ptr->offset))
 
 #define NEXT_META_BLOCK(block_meta_data_ptr) \
     (block_meta_data_ptr->next_block)

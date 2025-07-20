@@ -388,6 +388,73 @@ void *xcalloc(char *struct_name, int units)
     return NULL;
 }
 
+static int mm_get_hard_internal_memory_frag_size(block_meta_data_t *first, block_meta_data_t *second)
+{
+    //assert(first || second);
+    /* confirm the existance of a hard fragmented memory between first and second arguments */
+    //assert(first->is_free == MM_TRUE || second->is_free == MM_TRUE);
+
+    block_meta_data_t *next_block = NEXT_META_BLOCK_BY_SIZE(first);
+    return (int)(second - next_block);
+}
+
+static block_meta_data_t *mm_free_blocks(block_meta_data_t *to_be_free_block){
+
+    block_meta_data_t *returning_block = NULL;
+    block_meta_data_t *next_block = NULL;
+    block_meta_data_t *prev_block = NULL;
+    assert(to_be_free_block->is_free == MM_FALSE);
+
+    vm_page_t *hosting_page = MM_GET_PAGE_FROM_META_BLOCK(to_be_free_block);
+    vm_page_family_t *hosting_page_family = hosting_page->page_family;
+    //returning_block = to_be_free_block;
+    to_be_free_block->is_free = MM_TRUE;
+
+    next_block = NEXT_META_BLOCK(to_be_free_block);
+    prev_block = PREV_META_BLOCK(to_be_free_block);
+    /* Handling Hard Fragmentated memory */
+    if(next_block){
+        /* Scenario #1: When data block to be freed is not the uppermost/last
+         * meta block in the vm page. merge if the next met block is free.
+        */
+        to_be_free_block->block_size += mm_get_hard_internal_memory_frag_size(to_be_free_block, next_block);
+    }
+    else{
+        /* Scenario #2: when data block is the uppermost/last meta block on the vm page boundary 
+         * merge if there is a hard fragment on the boundary.
+        */
+        char *end_address_of_vm_page = hosting_page + SYSTEM_PAGE_SIZE;
+        char *end_address_of_free_data_block = (char *)(to_be_free_block + 1) + to_be_free_block->block_size;
+        int internal_mem_fragmentation = (int)(end_address_of_vm_page - end_address_of_free_data_block);
+        to_be_free_block->block_size += internal_mem_fragmentation;
+    }
+
+    /* Perform merging */
+    if(next_block && next_block->is_free == MM_TRUE){
+        mm_union_free_blocks(to_be_free_block, next_block);
+        returning_block = to_be_free_block;
+    }
+    if(prev_block && prev_block->is_free == MM_TRUE){
+        mm_union_free_blocks(prev_block, to_be_free_block);
+        returning_block = prev_block;
+    }
+
+    if(mm_is_vm_page_empty(hosting_page)){
+        mm_vm_page_delete_and_free(hosting_page);
+        return NULL;
+    }
+    /* add the meta data block to the free blocks list */
+    mm_add_free_block_meta_data_to_free_block_list(hosting_page, returning_block);
+    return returning_block;
+}
+
+void xfree(void *app_data){
+
+    block_meta_data_t *block_meta_data = (block_meta_data_t *)((char *)app_data - sizeof(block_meta_data_t));
+    assert(block_meta_data->is_free == MM_FALSE);
+    mm_free_blocks(block_meta_data);
+}
+
 void mm_print_block_usage(void)
 {
     vm_page_for_families_t *vm_page_family_base_ptr = NULL;
@@ -444,7 +511,7 @@ void mm_print_vm_page_details(vm_page_t *vm_page){
     uint32_t j = 0;
     block_meta_data_t *curr;
     ITERATE_VM_PAGE_ALL_BLOCKS_BEGIN(vm_page, curr){
-
+        
         printf("\t\t\t%-14p Block %-3u %s  block_size = %-6u  "
                 "offset = %-6u  prev = %-14p  next = %p\n",
                 curr,
