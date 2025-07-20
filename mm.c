@@ -48,6 +48,41 @@ static inline uint32_t mm_max_page_allocatable_memory(int units){
     return (uint32_t)((SYSTEM_PAGE_SIZE * units) - offset_of(vm_page_t, page_memory));
 }
 
+static int free_blocks_comparison_function(void *_block_metadata1, void *_block_metadata2)
+{
+    block_meta_data_t *block_metadata1 = (block_meta_data_t *)_block_metadata1;
+    block_meta_data_t *block_metadata2 = (block_meta_data_t *)_block_metadata2;
+
+    if(block_metadata1->block_size < block_metadata2->block_size)
+        return 1;
+    if(block_metadata1->block_size > block_metadata2->block_size)
+        return -1;
+
+    return 0;      
+}
+
+static void mm_add_free_block_meta_data_to_free_block_list(vm_page_family_t *vm_page_family, 
+    block_meta_data_t *free_block){
+
+    assert(free_block->is_free == MM_TRUE);
+    glthread_priority_insert(&vm_page_family->free_block_priority_list_head,
+                            &free_block->priority_list_glue,
+                            free_blocks_comparison_function,
+                            offset_of(block_meta_data_t, priority_list_glue));
+    
+}
+
+/* get the first element in the priority queue */
+static inline block_meta_data_t *mm_get_biggest_free_block_page_family(vm_page_family_t *vm_page_family)
+{
+    glthread_t *head =  &vm_page_family->free_block_priority_list_head;
+    if(head->right)
+        return glue_to_block_metadata(head->right);
+    
+    return NULL;
+}
+
+/* Global Function definitions */
 void mm_init(void)
 {
     SYSTEM_PAGE_SIZE = getpagesize();
@@ -71,6 +106,8 @@ void mm_instantiate_new_page_family(char *struct_name, uint32_t struct_size)
         vm_page_family_curr  = (vm_page_family_t *)&first_vm_page_for_families->vm_page_family[0];
         strncpy(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME);
         vm_page_family_curr->struct_size = struct_size;
+        vm_page_family_curr->first_page = NULL;
+        init_glthread(&vm_page_family_curr->free_block_priority_list_head);
         return;
     }
 
@@ -96,6 +133,8 @@ void mm_instantiate_new_page_family(char *struct_name, uint32_t struct_size)
     /* copy the entries to it */
     strncpy(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME);
     vm_page_family_curr->struct_size = struct_size;
+    vm_page_family_curr->first_page = NULL;
+    init_glthread(&vm_page_family_curr->free_block_priority_list_head);
 }
 
 vm_page_family_t *mm_lookup_page_family_by_name(char *struct_name)
@@ -196,6 +235,7 @@ vm_page_t *mm_allocate_vm_page(vm_page_family_t *vm_page_family)
     vm_page->next = NULL;
     vm_page->prev = NULL;
     vm_page->page_family = vm_page_family;
+    init_glthread(&vm_page->block_meta_data.priority_list_glue);
 
     if(!vm_page_family->first_page){
         vm_page_family->first_page = vm_page;

@@ -2,6 +2,7 @@
 #define MM_H_
 
 #include <stdint.h>
+#include "glueThread/glthread.h"
 
 #define MM_MAX_STRUCT_NAME 32U
 
@@ -16,7 +17,10 @@ typedef struct block_meta_data_{
     uint32_t offset; /* offset from the strt of the page */
     struct block_meta_data_ *prev_block;
     struct block_meta_data_ *next_block;
+    glthread_t priority_list_glue;
 }block_meta_data_t;
+
+GLTHREAD_TO_STRUCT(glue_to_block_metadata, block_meta_data_t, priority_list_glue);
 
 /* Forward declaration */
 struct vm_page_family_;
@@ -33,6 +37,7 @@ typedef struct vm_page_family_{
     char struct_name[MM_MAX_STRUCT_NAME];
     uint32_t struct_size;
     vm_page_t *first_page;
+    glthread_t free_block_priority_list_head;
 }vm_page_family_t;
 
 typedef struct vm_page_for_families_{
