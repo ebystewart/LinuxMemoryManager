@@ -119,7 +119,7 @@ typedef struct vm_page_for_families_{
     first_meta_block = curr_block_meta_data;                                                            \
     for(; (curr_block_meta_data &&                                                                      \
         (curr_block_meta_data < (block_meta_data_t *)((char *)first_meta_block + VM_PAGE_USABLE_SIZE)));        \
-        (curr_block_meta_data = (block_meta_data_t *)(curr_block_meta_data->block_size + sizeof(block_meta_data_t))))                \
+        (curr_block_meta_data =  NEXT_META_BLOCK(curr_block_meta_data)))                \
     {                                                                                                                                        
 
 #define ITERATE_VM_PAGE_ALL_BLOCKS_END(vm_page_ptr, curr_block_meta_data) }}

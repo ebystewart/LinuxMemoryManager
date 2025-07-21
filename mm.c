@@ -191,21 +191,22 @@ void mm_instantiate_new_page_family(char *struct_name, uint32_t struct_size)
     if(!first_vm_page_for_families){
         first_vm_page_for_families = (vm_page_for_families_t *)mm_get_new_vm_page_from_kernel(1);
         first_vm_page_for_families->next = NULL;
-        vm_page_family_curr  = (vm_page_family_t *)&first_vm_page_for_families->vm_page_family[0];
-        strncpy(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME);
-        vm_page_family_curr->struct_size = struct_size;
-        vm_page_family_curr->first_page = NULL;
-        init_glthread(&vm_page_family_curr->free_block_priority_list_head);
+        strncpy(first_vm_page_for_families->vm_page_family[0].struct_name, struct_name, MM_MAX_STRUCT_NAME);
+        first_vm_page_for_families->vm_page_family[0].struct_size = struct_size;
+        first_vm_page_for_families->vm_page_family[0].first_page = NULL;
+        init_glthread(&first_vm_page_for_families->vm_page_family[0].free_block_priority_list_head);
         return;
     }
 
+    vm_page_family_curr = mm_lookup_page_family_by_name(struct_name);
+    if(vm_page_family_curr)
+        assert(0);
+
     /* Iterate over the family page and look if space is available */
     ITERATE_PAGE_FAMILIES_BEGIN(first_vm_page_for_families, vm_page_family_curr){
-        /* It should be possible to allocate memory for same structure multiple times */
-        //if(strncmp(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME) == 0U){
-            //assert(0);
-        //}
+            
         count++;
+
     }ITERATE_PAGE_FAMILIES_END(first_vm_page_for_families, vm_page_family_curr);
 
     /* If no space is available, create a new vm page family */
@@ -214,8 +215,6 @@ void mm_instantiate_new_page_family(char *struct_name, uint32_t struct_size)
         new_vm_page_for_families = (vm_page_for_families_t *)mm_get_new_vm_page_from_kernel(1);
         new_vm_page_for_families->next = first_vm_page_for_families;
         first_vm_page_for_families = new_vm_page_for_families;
-        vm_page_family_curr  = (vm_page_family_t *)&first_vm_page_for_families->vm_page_family[0];
-
     }
     /* Now a vm page family pointer would be available either from the old page family or a new page family */
     /* copy the entries to it */
@@ -327,6 +326,9 @@ vm_page_t *mm_allocate_vm_page(vm_page_family_t *vm_page_family)
     vm_page->page_family = vm_page_family;
     init_glthread(&vm_page->block_meta_data.priority_list_glue);
 
+    /*Set the back pointer to page family*/
+    vm_page->page_family = vm_page_family;
+
     if(!vm_page_family->first_page){
         vm_page_family->first_page = vm_page;
         return vm_page;
@@ -372,7 +374,7 @@ void *xcalloc(char *struct_name, int units)
         return NULL;
     }
 
-    /* check if the requested memory fits with a vm page */
+    /* check if the requested memory fits with-in a vm page */
     if((page_family->struct_size * units) > mm_max_page_allocatable_memory(1)){
         printf("Error: Memory requested exceeds page size\n");
         return NULL;
@@ -423,7 +425,7 @@ static block_meta_data_t *mm_free_blocks(block_meta_data_t *to_be_free_block){
         /* Scenario #2: when data block is the uppermost/last meta block on the vm page boundary 
          * merge if there is a hard fragment on the boundary.
         */
-        char *end_address_of_vm_page = hosting_page + SYSTEM_PAGE_SIZE;
+        char *end_address_of_vm_page = ((char *)hosting_page + SYSTEM_PAGE_SIZE);
         char *end_address_of_free_data_block = (char *)(to_be_free_block + 1) + to_be_free_block->block_size;
         int internal_mem_fragmentation = (int)(end_address_of_vm_page - end_address_of_free_data_block);
         to_be_free_block->block_size += internal_mem_fragmentation;
@@ -444,7 +446,7 @@ static block_meta_data_t *mm_free_blocks(block_meta_data_t *to_be_free_block){
         return NULL;
     }
     /* add the meta data block to the free blocks list */
-    mm_add_free_block_meta_data_to_free_block_list(hosting_page, returning_block);
+    mm_add_free_block_meta_data_to_free_block_list(hosting_page->page_family, returning_block);
     return returning_block;
 }
 
@@ -481,7 +483,7 @@ void mm_print_block_usage(void)
                     assert(IS_GLTHREAD_LIST_EMPTY(&block_meta_data_curr->priority_list_glue));
                 }
                 if(block_meta_data_curr->is_free == MM_TRUE){
-                    assert(!IS_GLTHREAD_LIST_EMPTY(&block_meta_data_curr->priority_list_glue));
+                    assert(IS_GLTHREAD_LIST_EMPTY(&block_meta_data_curr->priority_list_glue));
                 }
 
                 if(block_meta_data_curr->is_free == MM_TRUE){
@@ -511,7 +513,7 @@ void mm_print_vm_page_details(vm_page_t *vm_page){
     uint32_t j = 0;
     block_meta_data_t *curr;
     ITERATE_VM_PAGE_ALL_BLOCKS_BEGIN(vm_page, curr){
-        
+        //printf("%s(): meta block @ %p\n", __FUNCTION__, (block_meta_data_t *)curr);
         printf("\t\t\t%-14p Block %-3u %s  block_size = %-6u  "
                 "offset = %-6u  prev = %-14p  next = %p\n",
                 curr,
@@ -550,6 +552,7 @@ void mm_print_memory_usage(char *struct_name)
         ITERATE_VM_PAGE_BEGIN(vm_page_family_curr, vm_page_curr){
 
             cumulative_vm_pages_claimed_from_kernel++;
+            printf("Entry\n");
             mm_print_vm_page_details(vm_page_curr);
 
         }ITERATE_VM_PAGE_END(vm_page_family_curr, vm_page_curr);
