@@ -76,9 +76,9 @@ static void mm_add_free_block_meta_data_to_free_block_list(vm_page_family_t *vm_
 /* get the first element in the priority queue */
 static inline block_meta_data_t *mm_get_biggest_free_block_page_family(vm_page_family_t *vm_page_family)
 {
-    glthread_t *head =  &vm_page_family->free_block_priority_list_head;
-    if(head->right)
-        return glue_to_block_metadata(head->right);
+    glthread_t *biggest_free_block_glue =  &vm_page_family->free_block_priority_list_head.right;
+    if(biggest_free_block_glue)
+        return glue_to_block_metadata(biggest_free_block_glue);
     
     return NULL;
 }
@@ -122,6 +122,7 @@ static vm_bool_t mm_split_free_data_block_for_allocation(vm_page_family_t *vm_pa
         next_block_meta_data->block_size = remaining_size - sizeof(block_meta_data_t);
         next_block_meta_data->offset = block_meta_data->offset + sizeof(block_meta_data_t) + block_meta_data->block_size;
         init_glthread(&next_block_meta_data->priority_list_glue);
+        mm_add_free_block_meta_data_to_free_block_list(vm_page_family, next_block_meta_data);
         mm_bind_split_blocks_after_allocation(block_meta_data, next_block_meta_data);
     }
     /* Case #3: Partial Split: Hard Internal Fragmantation */
@@ -138,6 +139,7 @@ static vm_bool_t mm_split_free_data_block_for_allocation(vm_page_family_t *vm_pa
         next_block_meta_data->block_size = remaining_size - sizeof(block_meta_data_t);
         next_block_meta_data->offset = block_meta_data->offset + sizeof(block_meta_data_t) + block_meta_data->block_size;
         init_glthread(&next_block_meta_data->priority_list_glue);
+        mm_add_free_block_meta_data_to_free_block_list(vm_page_family, next_block_meta_data);
         mm_bind_split_blocks_after_allocation(block_meta_data, next_block_meta_data);
     }   
     return MM_TRUE;
@@ -145,14 +147,19 @@ static vm_bool_t mm_split_free_data_block_for_allocation(vm_page_family_t *vm_pa
 
 static block_meta_data_t *mm_allocate_free_data_block(vm_page_family_t *vm_page_family, uint32_t req_size)
 {
-    vm_bool_t status;
+    vm_bool_t status = MM_FALSE;
     vm_page_t *vm_page = NULL;
     block_meta_data_t *biggest_block_meta_data =  mm_get_biggest_free_block_page_family(vm_page_family);
 
     if(!biggest_block_meta_data || biggest_block_meta_data->block_size < req_size){
         /* time to add a new page to meet the request */
         vm_page = mm_family_new_page_add(vm_page_family);
-        //printf("%s() - INFO: vm page created %p\n", vm_page);
+        printf("%s() - INFO: vm page created %p\n", __FUNCTION__, vm_page);
+        printf("%s() - INFO: biggest data block found @ %p, met block size is %u and requested size is %u\n", 
+            __FUNCTION__,
+            biggest_block_meta_data,
+            biggest_block_meta_data->block_size,
+            req_size);
         /* allocate a free block from the new page */
         status = mm_split_free_data_block_for_allocation(vm_page_family, &vm_page->block_meta_data, req_size);
         if(status){
@@ -168,6 +175,7 @@ static block_meta_data_t *mm_allocate_free_data_block(vm_page_family_t *vm_page_
             return biggest_block_meta_data;
         }
     }
+    return NULL;
 }
 
 /* Global Function definitions */
@@ -230,37 +238,27 @@ vm_page_family_t *mm_lookup_page_family_by_name(char *struct_name)
     vm_page_family_t *vm_page_family_curr = NULL;
     vm_page_for_families_t *curr_vm_page_for_families = NULL;
 
-
     if(!first_vm_page_for_families){
         printf("Error: No Page family exists\n");
         return NULL;
     }
-    curr_vm_page_for_families = first_vm_page_for_families;
 
-    do{
+    for(curr_vm_page_for_families = first_vm_page_for_families; curr_vm_page_for_families; 
+        curr_vm_page_for_families = curr_vm_page_for_families->next)
+    {
         ITERATE_PAGE_FAMILIES_BEGIN(curr_vm_page_for_families, vm_page_family_curr)
         {
             if (vm_page_family_curr->struct_size > 0U)
             {
-                if(strncmp(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME) == 0U)
+                if (strncmp(vm_page_family_curr->struct_name, struct_name, MM_MAX_STRUCT_NAME) == 0U)
                 {
                     return vm_page_family_curr;
                 }
-                count++;
             }
         }
         ITERATE_PAGE_FAMILIES_END(curr_vm_page_for_families, vm_page_family_curr);
-
-        if(count == MAX_FAMILIES_PER_VM_PAGE){
-            if(!curr_vm_page_for_families->next)
-                return NULL;
-            curr_vm_page_for_families = curr_vm_page_for_families->next;
-            count = 0;
-        }
-        else{
-            curr_vm_page_for_families = curr_vm_page_for_families->next;
-        }
-    }while(curr_vm_page_for_families != NULL); 
+    }
+    return NULL;
 }
 
 void mm_print_registered_page_families(void)
@@ -483,7 +481,7 @@ void mm_print_block_usage(void)
                     assert(IS_GLTHREAD_LIST_EMPTY(&block_meta_data_curr->priority_list_glue));
                 }
                 if(block_meta_data_curr->is_free == MM_TRUE){
-                    assert(IS_GLTHREAD_LIST_EMPTY(&block_meta_data_curr->priority_list_glue));
+                    assert(!IS_GLTHREAD_LIST_EMPTY(&block_meta_data_curr->priority_list_glue));
                 }
 
                 if(block_meta_data_curr->is_free == MM_TRUE){
