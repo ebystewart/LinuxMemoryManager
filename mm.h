@@ -135,4 +135,6 @@ void mm_vm_page_delete_and_free(vm_page_t *vm_page);
 
 void mm_print_vm_page_details(vm_page_t *vm_page);
 
+void mm_print_vm_page_priority_queue(vm_page_family_t *vm_page_family);
+
 #endif

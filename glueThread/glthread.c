@@ -108,14 +108,21 @@ void glthread_priority_insert(glthread_t *glthread_head, glthread_t *glthread, i
         return;
     }
 
-    /* Only one node in the list */
-    if(get_glthread_list_count(glthread_head) == 1U){
-        if(comp_fn(GLTHREAD_GET_USER_DATA_FROM_OFFSET(glthread, offset), GLTHREAD_GET_USER_DATA_FROM_OFFSET(glthread_head->right, offset)) == -1){
-            glthread_add_next(glthread_head, glthread);
-        }
-        else{
+    /* Only one node*/
+    if(glthread_head->right && !glthread_head->right->right){
+        if(comp_fn(GLTHREAD_GET_USER_DATA_FROM_OFFSET(glthread_head->right, offset), 
+                GLTHREAD_GET_USER_DATA_FROM_OFFSET(glthread, offset)) == -1){
             glthread_add_next(glthread_head->right, glthread);
         }
+        else{
+            glthread_add_next(glthread_head, glthread);
+        }
+        return;
+    }
+
+    if(comp_fn(GLTHREAD_GET_USER_DATA_FROM_OFFSET(glthread, offset), 
+            GLTHREAD_GET_USER_DATA_FROM_OFFSET(glthread_head->right, offset)) == -1){
+        glthread_add_next(glthread_head, glthread);
         return;
     }
 

@@ -59,7 +59,7 @@ int main (int argc, char **argv)
     printf(" \nSCENARIO 3 : *********** \n");
     mm_print_memory_usage(0);
     mm_print_block_usage();
-    XCALLOC(1, student_t);
+    student_t *stud3 = XCALLOC(1, student_t);
 #if 0
     int i = 0;
     for(; i < 500; i++){
